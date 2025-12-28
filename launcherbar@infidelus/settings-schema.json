@@ -1,0 +1,30 @@
+{
+  "configPath": {
+    "type": "entry",
+    "default": "~/.config/cinnamon-launcher-bar/config.json",
+    "description": "Path to launcher configuration file"
+  },
+
+  "iconSize": {
+    "type": "spinbutton",
+    "default": 32,
+    "min": 16,
+    "max": 64,
+    "step": 2,
+    "description": "Launcher icon size"
+  },
+
+  "compactMode": {
+    "type": "checkbox",
+    "default": false,
+    "description": "Compact icon spacing"
+  },
+
+  "editConfig": {
+    "type": "button",
+    "description": "Edit launcher configuration",
+    "tooltip": "Open the launcher JSON configuration file",
+    "callback": "on_editConfig"
+  }
+}
+

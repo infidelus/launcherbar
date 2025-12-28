@@ -1,0 +1,38 @@
+{
+  "_help": [
+    "Desktop launcher:",
+    "{ \"desktop\": \"firefox.desktop\" }",
+    "",
+    "Executable launcher:",
+    "{",
+    "  \"name\": \"My App\",",
+    "  \"exec\": [\"/full/path/to/executable\"],",
+    "  \"iconPath\": \"/full/path/to/icon.png\"",
+    "}",
+    "",
+    "Wine launcher:",
+    "{",
+    "  \"name\": \"Windows App\",",
+    "  \"exec\": [\"wine\", \"/path/to/app.exe\"],",
+    "  \"env\": { \"WINEPREFIX\": \"/path/to/prefix\" },",
+    "  \"iconPath\": \"/path/to/icon.png\"",
+    "}",
+    "",
+    "Divider:",
+    "{ \"type\": \"divider\" }"
+  ],
+  "groups": {
+    "Default": {
+      "items": [
+        { "desktop": "firefox.desktop" },
+        { "type": "divider" },
+        {
+          "name": "Example App",
+          "exec": ["/usr/bin/gedit"],
+          "iconPath": "/usr/share/icons/hicolor/256x256/apps/org.gnome.gedit.png"
+        }
+      ]
+    }
+  }
+}
+

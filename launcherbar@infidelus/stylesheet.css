@@ -1,0 +1,43 @@
+/* -------------------------------------------------
+ * Launcher buttons
+ * ------------------------------------------------- */
+
+.launcherbar-button {
+    padding: 6px 0;
+    border-radius: 6px;
+
+    transition-property: background-color, padding;
+    transition-duration: 60ms;
+    transition-timing-function: ease-out;
+}
+
+.launcherbar-button:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.launcherbar-button:active {
+    background-color: rgba(255, 255, 255, 0.22);
+    padding-top: 8px;
+    padding-bottom: 4px;
+}
+
+/* -------------------------------------------------
+ * Applet container
+ * ------------------------------------------------- */
+
+.launcherbar-applet {
+    background-color: transparent;
+    box-shadow: none;
+    border: none;
+}
+
+/* Prevent panel hover / active styling */
+.launcherbar-applet,
+.launcherbar-applet:hover,
+.launcherbar-applet:active,
+.launcherbar-applet:focus {
+    background-color: transparent;
+    box-shadow: none;
+    border: none;
+}
+

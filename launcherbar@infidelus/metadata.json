@@ -1,0 +1,8 @@
+{
+  "uuid": "launcherbar@infidelus",
+  "name": "Launcher Bar",
+  "description": "A vertical launcher bar for Cinnamon panels, configurable via JSON.",
+  "version": "1.0.0",
+  "max-instances": -1
+}
+
