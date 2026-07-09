@@ -3,6 +3,7 @@ const St = imports.gi.St;
 const Util = imports.misc.util;
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
+const Main = imports.ui.main;
 const Tooltips = imports.ui.tooltips;
 const Settings = imports.ui.settings;
 
@@ -10,9 +11,15 @@ class LauncherBar extends Applet.Applet {
     constructor(metadata, orientation, panelHeight, instanceId) {
         super(orientation, panelHeight, instanceId);
 
+        // Panel orientation: LEFT/RIGHT panels are vertical, TOP/BOTTOM horizontal
+        this._orientation = orientation;
+
         this.actor.track_hover = false;
         this.actor.reactive = true;
         this.actor.can_focus = false;
+
+        // Apply the container style class so stylesheet.css rules take effect
+        this.actor.add_style_class_name("launcherbar-applet");
 
         // Kill panel hover tint without breaking menus
         this.actor.connect("enter-event", () => {
@@ -30,9 +37,10 @@ class LauncherBar extends Applet.Applet {
             this, metadata.uuid, instanceId
         );
 
-        this.settings.bind("configPath", "configPath", this.reload);
-        this.settings.bind("iconSize", "iconSize", this.reload);
-        this.settings.bind("compactMode", "compactMode", this.reload);
+        // configPath needs the file monitor moving as well as a reload
+        this.settings.bind("configPath", "configPath", () => this._onConfigPathChanged());
+        this.settings.bind("iconSize", "iconSize", () => this.reload());
+        this.settings.bind("compactMode", "compactMode", () => this.reload());
 
         // Context menu: Edit configuration
         this._applet_context_menu.addAction(
@@ -43,10 +51,9 @@ class LauncherBar extends Applet.Applet {
             }
         );
 
-        // Container
+        // Container — orientation is applied in reload()
         this.box = new St.BoxLayout({
-            vertical: true,
-            y_align: St.Align.START,
+            vertical: this._isVertical(),
             style_class: "launcherbar-box"
         });
 
@@ -55,7 +62,6 @@ class LauncherBar extends Applet.Applet {
 
         this.setAllowedLayout(Applet.AllowedLayout.BOTH);
         this.actor.add_child(this.box);
-        this.actor.set_y_align(St.Align.START);
 
         this._monitor = null;
         this._reloadTimeout = null;
@@ -74,6 +80,11 @@ class LauncherBar extends Applet.Applet {
         });
     }
 
+    on_orientation_changed(orientation) {
+        this._orientation = orientation;
+        this.reload();
+    }
+
     on_applet_removed_from_panel() {
         if (this._monitor)
             this._monitor.cancel();
@@ -82,12 +93,28 @@ class LauncherBar extends Applet.Applet {
             GLib.source_remove(this._reloadTimeout);
     }
 
+    _isVertical() {
+        // A panel on the left or right edge lays its applets out vertically
+        return this._orientation === St.Side.LEFT ||
+               this._orientation === St.Side.RIGHT;
+    }
+
     _expandHome(path) {
         return path.replace(/^~/, GLib.get_home_dir());
     }
 
+    _onConfigPathChanged() {
+        // Re-point the file monitor at the new location, then rebuild
+        this._setupFileMonitor();
+        this.reload();
+    }
+
     reload() {
         this.box.destroy_all_children();
+        this.box.vertical = this._isVertical();
+
+        if (this._isVertical())
+            this.actor.set_y_align(St.Align.START);
 
         let path = this._expandHome(this.configPath);
         let file = Gio.File.new_for_path(path);
@@ -116,8 +143,10 @@ class LauncherBar extends Applet.Applet {
         let file = Gio.File.new_for_path(path);
 
         try {
+            // WATCH_MOVES catches editors that save atomically by writing a
+            // temporary file and renaming it over the original
             this._monitor = file.monitor_file(
-                Gio.FileMonitorFlags.NONE, null
+                Gio.FileMonitorFlags.WATCH_MOVES, null
             );
 
             this._monitor.connect("changed", () => {
@@ -146,12 +175,17 @@ class LauncherBar extends Applet.Applet {
         });
 
         new Tooltips.Tooltip(label, message);
-        this.box.add(label);
+        this.box.add_child(label);
     }
 
     _buildUI(config) {
         let size = this.iconSize || 32;
-        let padding = this.compactMode ? "2px 0" : "6px 0";
+        let pad = this.compactMode ? 2 : 6;
+
+        // Pad along the axis of flow: top/bottom on a vertical bar,
+        // left/right on a horizontal one
+        let padding = this._isVertical() ? `${pad}px 0` : `0 ${pad}px`;
+
         let firstGroup = true;
 
         if (!config.groups)
@@ -161,7 +195,7 @@ class LauncherBar extends Applet.Applet {
             let group = config.groups[groupName];
 
             if (!firstGroup) {
-                this.box.add(this._makeDivider());
+                this.box.add_child(this._makeDivider());
             }
             firstGroup = false;
 
@@ -169,7 +203,7 @@ class LauncherBar extends Applet.Applet {
 
                 // Divider item
                 if (item.type === "divider") {
-                    this.box.add(this._makeDivider());
+                    this.box.add_child(this._makeDivider());
                     continue;
                 }
 
@@ -187,22 +221,38 @@ class LauncherBar extends Applet.Applet {
                     `
                 });
 
-                // Tooltip
-                new Tooltips.Tooltip(button, item.name || "");
+                // Tooltip: explicit name, else the desktop entry's own name
+                new Tooltips.Tooltip(button, this._itemLabel(item));
 
                 button.connect("clicked", () => {
                     this._launchItem(item);
                 });
 
-                this.box.add(button);
+                this.box.add_child(button);
             }
         }
     }
 
+    _itemLabel(item) {
+        if (item.name)
+            return item.name;
+
+        if (item.desktop) {
+            let appInfo = Gio.DesktopAppInfo.new(item.desktop);
+            if (appInfo)
+                return appInfo.get_name() || "";
+        }
+
+        return "";
+    }
+
     _makeDivider() {
-        return new St.Widget({
-            style: "height: 1px; margin: 8px 0; background-color: rgba(255,255,255,0.15);"
-        });
+        // A thin rule across the bar, perpendicular to the direction of flow
+        let style = this._isVertical()
+            ? "height: 1px; margin: 8px 0; background-color: rgba(255,255,255,0.15);"
+            : "width: 1px; margin: 0 8px; background-color: rgba(255,255,255,0.15);";
+
+        return new St.Widget({ style: style });
     }
 
     _resolveIcon(item, size) {
@@ -248,9 +298,16 @@ class LauncherBar extends Applet.Applet {
         if (item.desktop) {
             let appInfo = Gio.DesktopAppInfo.new(item.desktop);
             if (appInfo) {
-                appInfo.launch([], null);
+                try {
+                    appInfo.launch([], null);
+                } catch (e) {
+                    this._launchFailed(this._itemLabel(item) || item.desktop, e);
+                }
                 return;
             }
+
+            this._launchFailed(item.desktop, "Desktop entry not found");
+            return;
         }
 
         // Custom exec
@@ -272,12 +329,17 @@ class LauncherBar extends Applet.Applet {
 
             launcher.spawnv(argv);
         } catch (e) {
-            global.logError(e);
+            this._launchFailed(this._itemLabel(item) || String(item.exec), e);
         }
+    }
+
+    _launchFailed(what, error) {
+        // Failures were previously silent; now tell the user why
+        global.logError(`Launcher Bar: failed to launch ${what}: ${error}`);
+        Main.notify("Launcher Bar", `Failed to launch ${what}\n${error}`);
     }
 }
 
 function main(metadata, orientation, panelHeight, instanceId) {
     return new LauncherBar(metadata, orientation, panelHeight, instanceId);
 }
-
