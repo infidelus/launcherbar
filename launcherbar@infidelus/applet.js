@@ -22,15 +22,22 @@ class LauncherBar extends Applet.Applet {
         this.actor.add_style_class_name("launcherbar-applet");
 
         // Kill panel hover tint without breaking menus
-        this.actor.connect("enter-event", () => {
+        let clearHover = () => {
             this.actor.remove_style_pseudo_class("hover");
-        });
-        this.actor.connect("leave-event", () => {
-            this.actor.remove_style_pseudo_class("hover");
-        });
-        this.actor.connect("allocation-changed", () => {
-            this.actor.remove_style_pseudo_class("hover");
-        });
+        };
+
+        this.actor.connect("enter-event", clearHover);
+        this.actor.connect("leave-event", clearHover);
+
+        // Cinnamon 6.8 removed the old 'allocation-changed' signal; the
+        // property notification replaces it. Guarded so that any future
+        // rename cannot stop the applet loading — the handlers above and
+        // the stylesheet still cover the hover tint without it.
+        try {
+            this.actor.connect("notify::allocation", clearHover);
+        } catch (e) {
+            global.logWarning(`Launcher Bar: allocation notify unavailable: ${e}`);
+        }
 
         // Settings
         this.settings = new Settings.AppletSettings(
